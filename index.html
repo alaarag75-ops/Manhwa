@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManhwaZone — مانهوا مجانية بالصور</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #090c14;
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .glass {
+            background: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .accent-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #06130d;
+        }
+        .accent-btn:hover {
+            filter: brightness(1.08);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- الهيدر والبحث المباشر -->
+        <header class="glass rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl accent-btn flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-black text-white">ManhwaZone</h1>
+                    <p class="text-xs text-emerald-400">بحث مانهوا مباشر + مكتبة مجانية بالصور</p>
+                </div>
+            </div>
+
+            <form onsubmit="searchMangaApi(event)" class="flex items-center gap-2 flex-1 max-w-lg">
+                <div class="relative flex-1">
+                    <input type="text" id="apiSearchInput" value="solo leveling" placeholder="اكتب اسم العمل وابحث..." class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-9 text-xs text-white focus:outline-none focus:border-emerald-400">
+                    <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-xs text-slate-400"></i>
+                </div>
+                <button type="submit" class="accent-btn px-3.5 py-2 rounded-xl text-xs font-black transition shrink-0">
+                    بحث
+                </button>
+                <button type="button" onclick="toggleAddModal()" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition shrink-0">
+                    + عمل
+                </button>
+            </form>
+        </header>
+
+        <!-- رسالة حالة البحث / التنبيهات -->
+        <div id="statusBanner" class="hidden glass rounded-xl p-3 text-xs border"></div>
+
+        <!-- نتائج البحث المباشر -->
+        <section class="glass rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h2 id="apiHeading" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> نتائج البحث من المصدر
+                </h2>
+                <span id="apiCount" class="text-xs text-slate-400">0 نتائج</span>
+            </div>
+            <div id="apiResultsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- مكتبة المانهوا المجانية المحفوظة -->
+        <main id="libraryView" class="glass rounded-2xl p-4 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gift text-emerald-400"></i> مكتبتك وقائمة القراءة المجانية
+                </h2>
+                <div class="flex items-center gap-3">
+                    <input type="text" id="localFilterInput" oninput="renderLibrary()" placeholder="فلترة المكتبة..." class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-400">
+                    <span id="manhwaCount" class="text-xs text-slate-400">0 أعمال</span>
+                </div>
+            </div>
+            <div id="manhwaGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </main>
+
+        <!-- عارض الفصول والصفحات -->
+        <section id="readerView" class="hidden glass rounded-2xl p-4 md:p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div class="flex items-start gap-4">
+                    <img id="readerCover" src="" alt="" class="w-16 h-24 object-cover rounded-xl border border-slate-700 shrink-0">
+                    <div>
+                        <button onclick="backToLibrary()" class="text-xs text-emerald-400 hover:underline mb-1 inline-flex items-center gap-1">
+                            <i class="fa-solid fa-arrow-right"></i> العودة للمكتبة
+                        </button>
+                        <h2 id="readerTitle" class="text-lg font-black text-white"></h2>
+                        <p id="readerMeta" class="text-xs text-emerald-400 font-bold"></p>
+                        <p id="readerDesc" class="text-xs text-slate-300 mt-1 max-w-2xl"></p>
+                        <a id="readerExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="hidden mt-2 inline-flex items-center gap-1.5 text-[11px] bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-3 py-1 rounded-lg">
+                            <i class="fa-solid fa-up-right-from-square"></i> فتح صفحة العمل في المصدر
+                        </a>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <select id="chapterSelect" onchange="selectChapter(this.value)" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-400"></select>
+                    <button onclick="toggleAddChapterBox()" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold">
+                        + إضافة صور فصل
+                    </button>
+                </div>
+            </div>
+
+            <!-- إضافة صور لفصل -->
+            <div id="addChapterBox" class="hidden bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <h3 class="text-xs font-bold text-emerald-400">إضافة فصل جديد بالصور أو الروابط</h3>
+                <input type="text" id="newChapterName" placeholder="اسم الفصل (مثلاً: Chapter 1)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                <textarea id="newChapterUrls" rows="3" dir="ltr" placeholder="ضع روابط صور الصفحات (كل رابط في سطر)..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-emerald-300"></textarea>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <label class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                        <i class="fa-solid fa-images text-emerald-400 ml-1"></i> اختيار صور من الجهاز
+                        <input type="file" id="chapterFilesInput" accept="image/*" multiple class="hidden" onchange="handleChapterFiles(event)">
+                    </label>
+                    <button onclick="saveNewChapter()" class="accent-btn px-4 py-2 rounded-xl text-xs font-black">
+                        حفظ الفصل
+                    </button>
+                </div>
+            </div>
+
+            <!-- صفحات الفصل -->
+            <div id="pagesContainer" class="max-w-2xl mx-auto space-y-3"></div>
+        </section>
+    </div>
+
+    <!-- مودال إضافة مانهوا جديدة -->
+    <div id="addModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="glass rounded-2xl p-5 w-full max-w-md space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h3 class="text-sm font-black text-white">إضافة مانهوا مجانية</h3>
+                <button onclick="toggleAddModal()" class="text-slate-400 hover:text-rose-400 text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <input type="text" id="mTitle" placeholder="اسم المانهوا" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="text" id="mGenre" placeholder="التصنيف • مجاني" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <textarea id="mDesc" rows="2" placeholder="نبذة عن القصة..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"></textarea>
+            <input type="url" id="mCover" dir="ltr" placeholder="رابط صورة الغلاف (اختياري)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-300">
+            <button onclick="addManhwa()" class="w-full accent-btn py-2.5 rounded-xl text-xs font-black">
+                إضافة إلى المكتبة
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // صيغة الطلب: https://johan-vex-apis.vercel.app/api/search/manga?q=solo+leveling
+        const MANGA_API_ENDPOINT = 'https://johan-vex-apis.vercel.app/api/search/manga';
+        const STORAGE_KEY = 'manhwazone_vex_query_v2';
+
+        let apiResults = [];
+        let uploadedChapterImages = [];
+
+        function buildSearchUrl(queryText) {
+            const encoded = encodeURIComponent(queryText.trim()).replace(/%20/g, '+');
+            return `${MANGA_API_ENDPOINT}?q=${encoded}`;
+        }
+
+        function escapeXml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function createCoverDataUri(title, badge = 'مجاني • FREE', c1 = '#1e293b', c2 = '#090c14', accent = '#34d399') {
+            const safeTitle = escapeXml(String(title || 'Manhwa').slice(0, 28));
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 840">
+                <defs>
+                    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="${c1}"/>
+                        <stop offset="100%" stop-color="${c2}"/>
+                    </linearGradient>
+                </defs>
+                <rect width="600" height="840" fill="url(#g)"/>
+                <circle cx="300" cy="340" r="155" fill="none" stroke="${accent}" stroke-width="4" opacity="0.55"/>
+                <polygon points="300,205 420,415 180,415" fill="${accent}" opacity="0.22"/>
+                <rect x="170" y="75" width="260" height="44" rx="22" fill="${accent}"/>
+                <text x="300" y="104" text-anchor="middle" fill="#06130d" font-family="Cairo, sans-serif" font-size="22" font-weight="900">${escapeXml(badge)}</text>
+                <rect x="45" y="565" width="510" height="225" rx="24" fill="rgba(9,12,20,0.78)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
+                <text x="300" y="645" text-anchor="middle" fill="#ffffff" font-family="Cairo, sans-serif" font-size="32" font-weight="900">${safeTitle}</text>
+                <text x="300" y="705" text-anchor="middle" fill="${accent}" font-family="Cairo, sans-serif" font-size="22" font-weight="700">ManhwaZone Free</text>
+            </svg>`;
+            return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+        }
+
+        const freeRealManhwa = [
+            {
+                id: 'tower-of-god',
+                title: 'Tower of God',
+                genre: 'Action • Fantasy • مجاني (WEBTOON)',
+                desc: 'سلسلة مانهوا كورية شهيرة متاحة مجاناً على WEBTOON، تدور حول صعود "بام" داخل برج غامض لاجتياز اختبارات كل طابق.',
+                cover: createCoverDataUri('Tower of God', 'مجاني • FREE', '#1e1b4b', '#090c14', '#34d399'),
+                sourceUrl: '',
+                chapters: []
+            },
+            {
+                id: 'lookism',
+                title: 'Lookism',
+                genre: 'Drama • Action • مجاني (WEBTOON)',
+                desc: 'مانهوا كورية معروفة متاحة مجاناً على WEBTOON عن طالب يكتشف قدرته على التبديل بين جسدين مختلفين.',
+                cover: createCoverDataUri('Lookism', 'مجاني • FREE', '#064e3b', '#090c14', '#fbbf24'),
+                sourceUrl: '',
+                chapters: []
+            },
+            {
+                id: 'unordinary',
+                title: 'unOrdinary',
+                genre: 'Superheroes • Drama • مجاني (WEBTOON)',
+                desc: 'ويبتون شهير مجاني على WEBTOON في عالم يمتلك فيه أغلب الناس قوى خارقة بينما يبدو البطل بلا قدرة.',
+                cover: createCoverDataUri('unOrdinary', 'مجاني • FREE', '#4c1d95', '#090c14', '#38bdf8'),
+                sourceUrl: '',
+                chapters: []
+            },
+            {
+                id: 'eleceed',
+                title: 'Eleceed',
+                genre: 'Action • Comedy • مجاني (WEBTOON)',
+                desc: 'مانهوا أكشن وكوميديا مجانية على WEBTOON تجمع بين شاب سريع البديهة وقط يمتلك قدرات قتالية خارقة.',
+                cover: createCoverDataUri('Eleceed', 'مجاني • FREE', '#78350f', '#090c14', '#f472b6'),
+                sourceUrl: '',
+                chapters: []
+            }
+        ];
+
+        let library = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || freeRealManhwa;
+        let activeManhwaId = null;
+
+        function saveLibrary() {
+            const toSave = library.map(item => ({
+                ...item,
+                chapters: item.chapters.map(ch => ({
+                    ...ch,
+                    pages: (ch.pages || []).filter(p => typeof p === 'string' && !p.startsWith('blob:'))
+                }))
+            }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        }
+
+        function showBanner(msg, isError = false) {
+            const banner = document.getElementById('statusBanner');
+            banner.classList.remove('hidden');
+            banner.className = `glass rounded-xl p-3 text-xs border whitespace-pre-wrap break-words ${
+                isError
+                    ? 'text-rose-300 border-rose-500/40 bg-rose-950/30'
+                    : 'text-emerald-300 border-emerald-500/30'
+            }`;
+            banner.textContent = msg;
+        }
+
+        function hideBanner() {
+            document.getElementById('statusBanner').classList.add('hidden');
+        }
+
+        function pickFirst(obj, keys) {
+            if (!obj || typeof obj !== 'object') return '';
+            for (const key of keys) {
+                if (obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim() !== '') {
+                    return obj[key];
+                }
+            }
+            return '';
+        }
+
+        function extractItemsArray(payload) {
+            if (Array.isArray(payload)) return payload;
+            if (!payload || typeof payload !== 'object') return [];
+            const keys = ['results', 'data', 'manga', 'manhwa', 'items', 'list', 'result'];
+            for (const k of keys) {
+                if (Array.isArray(payload[k])) return payload[k];
+                if (payload[k] && typeof payload[k] === 'object') {
+                    for (const subK of keys) {
+                        if (Array.isArray(payload[k][subK])) return payload[k][subK];
+                    }
+                }
+            }
+            return [];
+        }
+
+        function extractChaptersFromItem(item) {
+            const rawCh = pickFirst(item, ['chapters', 'chapter_list', 'episodes']);
+            if (!Array.isArray(rawCh)) return [];
+            return rawCh.map((ch, i) => {
+                if (typeof ch === 'string') {
+                    return { title: `Chapter ${i + 1}`, pages: [ch] };
+                }
+                const chTitle = String(pickFirst(ch, ['title', 'name', 'chapter']) || `Chapter ${i + 1}`).trim();
+                const rawPages = pickFirst(ch, ['images', 'pages', 'imgs', 'urls']);
+                const pages = Array.isArray(rawPages)
+                    ? rawPages.map(p => (typeof p === 'string' ? p : (p.url || p.src || p.image || ''))).filter(Boolean)
+                    : [];
+                return { title: chTitle, pages };
+            });
+        }
+
+        function normalizeMangaItem(item, index = 0) {
+            const title = String(pickFirst(item, ['title', 'name', 'manga_title', 'manhwa_title', 'slug']) || `عمل ${index + 1}`).trim();
+            let thumb = pickFirst(item, ['thumb', 'thumbnail', 'image', 'img', 'cover', 'poster', 'icon', 'src']);
+            if (Array.isArray(thumb) && thumb.length > 0) {
+                thumb = typeof thumb[0] === 'string' ? thumb[0] : (thumb[0].url || '');
+            } else if (typeof thumb === 'object' && thumb !== null) {
+                thumb = thumb.url || '';
+            }
+
+            let genre = pickFirst(item, ['genre', 'genres', 'type', 'category', 'status']);
+            if (Array.isArray(genre)) {
+                genre = genre.map(g => (typeof g === 'string' ? g : g.name || '')).filter(Boolean).join(' • ');
+            } else if (typeof genre === 'object' && genre !== null) {
+                genre = genre.name || '';
+            }
+            genre = String(genre || 'Manhwa • مجاني').trim();
+
+            const desc = String(pickFirst(item, ['desc', 'description', 'synopsis', 'summary', 'about']) || '').trim();
+            const link = String(pickFirst(item, ['url', 'link', 'href', 'manga_url', 'source']) || '').trim();
+            const chapters = extractChaptersFromItem(item);
+
+            const fallbackCover = createCoverDataUri(title, 'مجاني • FREE', '#1e1b4b', '#090c14', '#34d399');
+            const cover = thumb && /^https?:\/\//i.test(String(thumb)) ? String(thumb).trim() : fallbackCover;
+
+            return {
+                id: 'api-' + index + '-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24),
+                title,
+                genre,
+                desc,
+                cover,
+                fallbackCover,
+                sourceUrl: link,
+                chapters
+            };
+        }
+
+        async function searchMangaApi(event) {
+            if (event) event.preventDefault();
+            const q = document.getElementById('apiSearchInput').value.trim();
+            if (!q) {
+                showBanner('اكتب اسم العمل للبحث.', true);
+                return;
+            }
+
+            hideBanner();
+            document.getElementById('apiHeading').innerHTML = `<i class="fa-solid fa-spinner fa-spin text-emerald-400"></i> جاري البحث عن "${escapeHtml(q)}"...`;
+            document.getElementById('apiResultsGrid').innerHTML = '';
+
+            const requestUrl = buildSearchUrl(q);
+
+            try {
+                const res = await fetch(requestUrl);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                const rawItems = extractItemsArray(json);
+
+                apiResults = rawItems.map((item, idx) => normalizeMangaItem(item, idx));
+                document.getElementById('apiHeading').i
+                              document.getElementById('apiHeading').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> نتائج البحث عن "${escapeHtml(q)}"`;
+                document.getElementById('apiCount').innerText = `${apiResults.length} نتائج`;
+
+                if (!apiResults.length) {
+                    showBanner(`تم الطلب من:\n${requestUrl}\nلكن لم تظهر نتائج في الرد:\n${JSON.stringify(json).slice(0, 300)}`, true);
+                }
+
+                renderApiResults();
+            } catch (err) {
+                document.getElementById('apiHeading').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> نتائج البحث من المصدر`;
+                document.getElementById('apiCount').innerText = `0 نتائج`;
+                showBanner(`تعذر الاتصال بالـ (${requestUrl}) (${err.message}). تأكد من الاتصال أو من إعدادات CORS.`, true);
+            }
+        }
+
+        function renderApiResults() {
+            const grid = document.getElementById('apiResultsGrid');
+            grid.innerHTML = '';
+
+            if (!apiResults.length) {
+                grid.innerHTML = `<div class="col-span-full text-center text-xs text-slate-400 py-6">لا توجد نتائج معروضة حالياً.</div>`;
+                return;
+            }
+
+            apiResults.forEach((item, idx) => {
+                grid.innerHTML += `
+                    <div class="bg-slate-900/75 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between gap-3 hover:border-emerald-400/40 transition">
+                        <div class="space-y-2">
+                            <img src="${escapeHtml(item.cover)}" onerror="this.onerror=null;this.src='${escapeHtml(item.fallbackCover)}'" alt="${escapeHtml(item.title)}" class="w-full h-48 object-cover rounded-xl border border-slate-800">
+                            <h3 class="text-sm font-black text-white">${escapeHtml(item.title)}</h3>
+                            <p class="text-[11px] text-emerald-400 font-bold">${escapeHtml(item.genre)}</p>
+                            ${item.desc ? `<p class="text-xs text-slate-400 line-clamp-2">${escapeHtml(item.desc)}</p>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                            <button onclick="saveApiItemToLibrary(${idx})" class="flex-1 accent-btn py-2 px-3 rounded-xl text-xs font-black transition">
+                                + إضافة للمكتبة
+                            </button>
+                            ${item.sourceUrl ? `<a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs" title="فتح المصدر"><i class="fa-solid fa-up-right-from-square"></i></a>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function saveApiItemToLibrary(idx) {
+            const srcItem = apiResults[idx];
+            if (!srcItem) return;
+
+            const exists = library.some(m => m.title.toLowerCase() === srcItem.title.toLowerCase());
+            if (!exists) {
+                library.unshift({
+                    id: 'm-' + Date.now() + '-' + idx,
+                    title: srcItem.title,
+                    genre: srcItem.genre || 'Manhwa • مجاني',
+                    desc: srcItem.desc || '',
+                    cover: srcItem.cover || srcItem.fallbackCover,
+                    sourceUrl: srcItem.sourceUrl || '',
+                    chapters: srcItem.chapters || []
+                });
+                saveLibrary();
+                renderLibrary();
+            }
+
+            const target = library.find(m => m.title.toLowerCase() === srcItem.title.toLowerCase());
+            if (target) openReader(target.id);
+        }
+
+        function renderLibrary() {
+            const q = document.getElementById('localFilterInput').value.trim().toLowerCase();
+            const grid = document.getElementById('manhwaGrid');
+            grid.innerHTML = '';
+
+            const filtered = library.filter(m =>
+                m.title.toLowerCase().includes(q) ||
+                (m.genre || '').toLowerCase().includes(q)
+            );
+
+            document.getElementById('manhwaCount').innerText = `${filtered.length} أعمال`;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center text-xs text-slate-400 py-6">لا توجد أعمال في المكتبة مطابقة للفلتر.</div>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const fallback = createCoverDataUri(item.title, 'مجاني • FREE', '#1e293b', '#090c14', '#34d399');
+                const coverSrc = item.cover || fallback;
+                grid.innerHTML += `
+                    <div onclick="openReader('${item.id}')" class="bg-slate-900/75 border border-slate-800 rounded-2xl p-4 space-y-3 cursor-pointer hover:border-emerald-400/50 transition flex flex-col justify-between">
+                        <div class="space-y-2">
+                            <img src="${escapeHtml(coverSrc)}" onerror="this.onerror=null;this.src='${escapeHtml(fallback)}'" alt="${escapeHtml(item.title)}" class="w-full h-48 object-cover rounded-xl border border-slate-800">
+                            <div class="flex items-start justify-between gap-2 pt-1">
+                                <h3 class="text-sm font-black text-white">${escapeHtml(item.title)}</h3>
+                                <button onclick="event.stopPropagation(); deleteManhwa('${item.id}')" class="text-slate-500 hover:text-rose-400 text-xs" title="حذف">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-emerald-400 font-bold">${escapeHtml(item.genre || 'مجاني')}</p>
+                            <p class="text-xs text-slate-400 line-clamp-2">${escapeHtml(item.desc || 'لا يوجد وصف متاح.')}</p>
+                        </div>
+                        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-300">
+                            <span>${(item.chapters || []).length} فصول</span>
+                            <span class="text-emerald-400 font-bold">فتح العمل <i class="fa-solid fa-chevron-left"></i></span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function toggleAddModal() {
+            const modal = document.getElementById('addModal');
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+        }
+
+        function addManhwa() {
+            const title = document.getElementById('mTitle').value.trim();
+            if (!title) return;
+
+            const genreInput = document.getElementById('mGenre').value.trim();
+            const customCover = document.getElementById('mCover').value.trim();
+
+            library.unshift({
+                id: 'm-' + Date.now(),
+                title,
+                genre: genreInput ? `${genreInput} • مجاني` : 'Manhwa • مجاني',
+                desc: document.getElementById('mDesc').value.trim(),
+                cover: customCover || createCoverDataUri(title, 'مجاني • FREE', '#1e293b', '#090c14', '#34d399'),
+                sourceUrl: '',
+                chapters: []
+            });
+
+            saveLibrary();
+            document.getElementById('mTitle').value = '';
+            document.getElementById('mGenre').value = '';
+            document.getElementById('mDesc').value = '';
+            document.getElementById('mCover').value = '';
+            toggleAddModal();
+            renderLibrary();
+        }
+
+        function deleteManhwa(id) {
+            library = library.filter(m => m.id !== id);
+            saveLibrary();
+            renderLibrary();
+        }
+
+        function openReader(id) {
+            const item = library.find(m => m.id === id);
+            if (!item) return;
+            activeManhwaId = id;
+
+            document.getElementById('libraryView').classList.add('hidden');
+            document.getElementById('readerView').classList.remove('hidden');
+            document.getElementById('readerTitle').innerText = item.title;
+            document.getElementById('readerMeta').innerText = item.genre || '';
+            document.getElementById('readerDesc').innerText = item.desc || '';
+
+            const fallback = createCoverDataUri(item.title, 'مجاني • FREE', '#1e293b', '#090c14', '#34d399');
+            const coverEl = document.getElementById('readerCover');
+            coverEl.onerror = () => { coverEl.onerror = null; coverEl.src = fallback; };
+            coverEl.src = item.cover || fallback;
+
+            const extLink = document.getElementById('readerExternalLink');
+            if (item.sourceUrl && /^https?:\/\//i.test(item.sourceUrl)) {
+                extLink.href = item.sourceUrl;
+                extLink.classList.remove('hidden');
+            } else {
+                extLink.classList.add('hidden');
+            }
+
+            const select = document.getElementById('chapterSelect');
+            select.innerHTML = '';
+
+            if (!item.chapters || item.chapters.length === 0) {
+                select.innerHTML = `<option value="">لا توجد فصول مضافة بعد</option>`;
+                document.getElementById('pagesContainer').innerHTML = `<div class="bg-slate-900/70 rounded-2xl p-8 text-center text-xs text-slate-400 border border-slate-800">اضغط "+ إضافة صور فصل" لإضافة روابط صور أو صور من جهازك لهذا العمل.</div>`;
+                return;
+            }
+
+            item.chapters.forEach((ch, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = ch.title;
+                select.appendChild(opt);
+            });
+
+            selectChapter(0);
+            window.scrollTo({ top: document.getElementById('readerView').offsetTop - 20, behavior: 'smooth' });
+        }
+
+        function backToLibrary() {
+            activeManhwaId = null;
+            document.getElementById('readerView').classList.add('hidden');
+            document.getElementById('libraryView').classList.remove('hidden');
+            renderLibrary();
+        }
+
+        function selectChapter(index) {
+            const item = library.find(m => m.id === activeManhwaId);
+            if (!item) return;
+            const ch = item.chapters[Number(index)];
+            const container = document.getElementById('pagesContainer');
+            container.innerHTML = '';
+
+            if (!ch || !ch.pages || ch.pages.length === 0) {
+                container.innerHTML = `<div class="bg-slate-900/70 rounded-2xl p-8 text-center text-xs text-slate-400 border border-slate-800">هذا الفصل لا يحتوي على صفحات بعد. اضغط "+ إضافة صور فصل" لإضافة صور أو روابط.</div>`;
+                return;
+            }
+
+            ch.pages.forEach((src, i) => {
+                container.innerHTML += `
+                    <div class="bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+                        <img src="${escapeHtml(src)}" alt="صفحة ${i + 1}" class="w-full h-auto block select-none" loading="lazy">
+                    </div>
+                `;
+            });
+        }
+
+        function toggleAddChapterBox() {
+            uploadedChapterImages = [];
+            document.getElementById('addChapterBox').classList.toggle('hidden');
+        }
+
+        function handleChapterFiles(event) {
+            const files = Array.from(event.target.files || []);
+            uploadedChapterImages = files.map(f => URL.createObjectURL(f));
+        }
+
+        function saveNewChapter() {
+            const item = library.find(m => m.id === activeManhwaId);
+            if (!item) return;
+
+            const title = document.getElementById('newChapterName').value.trim() || `Chapter ${item.chapters.length + 1}`;
+            const urlLines = document.getElementById('newChapterUrls').value
+                .split('\n')
+                .map(s => s.trim())
+                .filter(Boolean);
+
+            const pages = [...urlLines, ...uploadedChapterImages];
+            item.chapters.push({ title, pages });
+            saveLibrary();
+
+            document.getElementById('newChapterName').value = '';
+            document.getElementById('newChapterUrls').value = '';
+            document.getElementById('addChapterBox').classList.add('hidden');
+            uploadedChapterImages = [];
+
+            openReader(item.id);
+            document.getElementById('chapterSelect').value = String(item.chapters.length - 1);
+            selectChapter(item.chapters.length - 1);
+        }
+
+        renderLibrary();
+        searchMangaApi();
+    </script>
+</body>
+</html>
