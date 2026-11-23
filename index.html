@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManhwaZone — قراءة المانهوا المجانية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #090c14;
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .glass {
+            background: rgba(17, 24, 39, 0.88);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .accent-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #06130d;
+        }
+        .accent-btn:hover {
+            filter: brightness(1.08);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- الهيدر والبحث -->
+        <header class="glass rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl accent-btn flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-black text-white">ManhwaZone</h1>
+                    <p class="text-xs text-emerald-400">أعمال مجانية جاهزة للقراءة • صور ونص</p>
+                </div>
+            </div>
+
+            <form onsubmit="handleApiSearch(event)" class="flex items-center gap-2 flex-1 max-w-md">
+                <div class="relative flex-1">
+                    <input type="text" id="searchInput" oninput="renderLibrary()" placeholder="ابحث عن مانهوا..." class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-9 text-xs text-white focus:outline-none focus:border-emerald-400">
+                    <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-xs text-slate-400"></i>
+                </div>
+                <button type="submit" class="accent-btn px-4 py-2 rounded-xl text-xs font-black transition shrink-0">
+                    بحث
+                </button>
+            </form>
+        </header>
+
+        <!-- رسالة تنبيه عند الحاجة -->
+        <div id="statusBanner" class="hidden glass rounded-xl p-3 text-xs border"></div>
+
+        <!-- مكتبة الأعمال الجاهزة -->
+        <main id="libraryView" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gift text-emerald-400"></i> المانهوا المجانية الجاهزة
+                </h2>
+                <span id="manhwaCount" class="text-xs text-slate-400">0 أعمال</span>
+            </div>
+            <div id="manhwaGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </main>
+
+        <!-- عارض الفصول (قراءة فقط) -->
+        <section id="readerView" class="hidden glass rounded-2xl p-4 md:p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div class="flex items-start gap-4">
+                    <img id="readerCover" src="" alt="" class="w-16 h-24 object-cover rounded-xl border border-slate-700 shrink-0">
+                    <div>
+                        <button onclick="backToLibrary()" class="text-xs text-emerald-400 hover:underline mb-1 inline-flex items-center gap-1">
+                            <i class="fa-solid fa-arrow-right"></i> إغلاق والعودة للمكتبة
+                        </button>
+                        <h2 id="readerTitle" class="text-lg font-black text-white"></h2>
+                        <p id="readerMeta" class="text-xs text-emerald-400 font-bold"></p>
+                        <p id="readerDesc" class="text-xs text-slate-300 mt-1 max-w-2xl"></p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="prevChapter()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold">
+                        الفصل السابق
+                    </button>
+                    <select id="chapterSelect" onchange="selectChapter(this.value)" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-400"></select>
+                    <button onclick="nextChapter()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold">
+                        الفصل التالي
+                    </button>
+                </div>
+            </div>
+
+            <!-- نص الفصل والصور -->
+            <div id="chapterStoryBox" class="max-w-2xl mx-auto bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-xs text-slate-200 leading-relaxed space-y-1.5"></div>
+            <div id="pagesContainer" class="max-w-2xl mx-auto space-y-3"></div>
+        </section>
+    </div>
+
+    <script>
+        const API_ENDPOINT = 'https://johan-vex-apis.vercel.app/api/search/manga';
+
+        let activeManhwaId = null;
+        let currentChapterIdx = 0;
+
+        function buildApiUrl(query) {
+            const encoded = encodeURIComponent(query.trim()).replace(/%20/g, '+');
+            return `${API_ENDPOINT}?q=${encoded}`;
+        }
+
+        function escapeXml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function createPageSvg(title, chapterName, pageNo, caption, c1 = '#1e1b4b', c2 = '#090c14', accent = '#34d399') {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 980">
+                <defs>
+                    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="${c1}"/>
+                        <stop offset="100%" stop-color="${c2}"/>
+                    </linearGradient>
+                </defs>
+                <rect width="700" height="980" fill="url(#bg)"/>
+                <rect x="28" y="28" width="644" height="924" rx="24" fill="none" stroke="${accent}" stroke-width="3" opacity="0.45"/>
+                <circle cx="350" cy="360" r="145" fill="rgba(255,255,255,0.06)" stroke="${accent}" stroke-width="2" opacity="0.6"/>
+                <polygon points="350,240 455,420 245,420" fill="${accent}" opacity="0.24"/>
+                <rect x="195" y="64" width="310" height="40" rx="20" fill="${accent}"/>
+                <text x="350" y="91" text-anchor="middle" fill="#06130d" font-family="Cairo, sans-serif" font-size="20" font-weight="900">مجاني • صفحة ${pageNo}</text>
+                <text x="350" y="155" text-anchor="middle" fill="#ffffff" font-family="Cairo, sans-serif" font-size="30" font-weight="900">${escapeXml(String(title).slice(0, 26))}</text>
+                <text x="350" y="195" text-anchor="middle" fill="#cbd5e1" font-family="Cairo, sans-serif" font-size="20">${escapeXml(String(chapterName).slice(0, 32))}</text>
+                <rect x="65" y="585" width="570" height="270" rx="22" fill="rgba(9,12,20,0.82)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
+                <text x="350" y="655" text-anchor="middle" fill="${accent}" font-family="Cairo, sans-serif" font-size="24" font-weight="700">مشهد الفصل</text>
+                <text x="350" y="720" text-anchor="middle" fill="#f8fafc" font-family="Cairo, sans-serif" font-size="22">${escapeXml(String(caption).slice(0, 46))}</text>
+                <text x="350" y="915" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="Cairo, sans-serif" font-size="18">ManhwaZone • قراءة مجانية</text>
+            </svg>`;
+            return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+        }
+
+        function buildDefaultChapters(title, desc) {
+            const ch1 = 'الفصل 1 — البداية';
+            const ch2 = 'الفصل 2 — التطورات';
+            return [
+                {
+                    title: ch1,
+                    text: `${title} (${ch1}): ${desc} يبدأ هذا الفصل بعرض المشهد الافتتاحي والتعريف بالشخصيات والظروف المحيطة بالقصة.`,
+                    pages: [
+                        createPageSvg(title, ch1, 1, 'بداية الفصل وعرض المشهد الأول', '#1e1b4b', '#090c14', '#34d399'),
+                        createPageSvg(title, ch1, 2, 'تطور الحوار وظهور أول تحدٍ', '#064e3b', '#090c14', '#fbbf24')
+                    ]
+                },
+                {
+                    title: ch2,
+                    text: `${title} (${ch2}): تتصاعد الأحداث في الفصل الثاني وتظهر قرارات جديدة تؤثر على مجرى القصة.`,
+                    pages: [
+                        createPageSvg(title, ch2, 1, 'تصاعد الأحداث وبداية مواجهة جديدة', '#4c1d95', '#090c14', '#38bdf8'),
+                        createPageSvg(title, ch2, 2, 'ختام الفصل والتمهيد لما هو قادم', '#78350f', '#090c14', '#f472b6')
+                    ]
+                }
+            ];
+        }
+
+        let worksList = [
+            {
+                id: 'tower-of-god',
+                title: 'Tower of God',
+                genre: 'Action • Fantasy • مجاني',
+                desc: 'رحلة صعود متسابقين داخل برج غامض لاجتياز اختبارات كل طابق.',
+                cover: createPageSvg('Tower of God', 'الغلاف', 1, 'برج الاختبارات والمغامرة', '#1e1b4b', '#090c14', '#34d399'),
+                chapters: buildDefaultChapters('Tower of God', 'رحلة صعود متسابقين داخل برج غامض لاجتياز اختبارات كل طابق.')
+            },
+            {
+                id: 'lookism',
+                title: 'Lookism',
+                genre: 'Drama • Action • مجاني',
+                desc: 'طالب يجد نفسه أمام واقع جديد وتجارب مختلفة في المدرسة والحياة.',
+                cover: createPageSvg('Lookism', 'الغلاف', 1, 'دراما وأكشن • فصول جاهزة', '#064e3b', '#090c14', '#fbbf24'),
+                chapters: buildDefaultChapters('Lookism', 'طالب يجد نفسه أمام واقع جديد وتجارب مختلفة في المدرسة والحياة.')
+            },
+            {
+                id: 'eleceed',
+                title: 'Eleceed',
+                genre: 'Action • Comedy • مجاني',
+                desc: 'مغامرات تجمع بين السرعة والقدرات الخاصة في أجواء أكشن وكوميديا.',
+                cover: createPageSvg('Eleceed', 'الغلاف', 1, 'أكشن وكوميديا • فصول جاهزة', '#4c1d95', '#090c14', '#38bdf8'),
+                chapters: buildDefaultChapters('Eleceed', 'مغامرات تجمع بين السرعة والقدرات الخاصة في أجواء أكشن وكوميديا.')
+            }
+        ];
+
+        function showBanner(msg, isError = false) {
+            const b = document.getElementById('statusBanner');
+            b.classList.remove('hidden');
+            b.className = `glass rounded-xl p-3 text-xs border ${
+                isError
+                    ? 'text-rose-300 border-rose-500/40 bg-rose-950/30'
+                    : 'text-emerald-300 border-emerald-500/30'
+            }`;
+            b.textContent = msg;
+        }
+
+        function pickFirst(obj, keys) {
+            if (!obj || typeof obj !== 'object') return '';
+            for (const k of keys) {
+                if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+                    return obj[k];
+                }
+            }
+            return '';
+        }
+
+        function extractArray(payload) {
+            if (Array.isArray(payload)) return payload;
+            if (!payload || typeof payload !== 'object') return [];
+            const keys = ['results', 'data', 'manga', 'manhwa', 'items', 'list', 'result'];
+            for (const k of keys) {
+                if (Array.isArray(payload[k])) return payload[k];
+                if (payload[k] && typeof payload[k] === 'object') {
+                    for (const sub of keys) {
+                        if (Array.isArray(payload[k][sub])) return payload[k][sub];
+                    }
+                }
+            }
+            return [];
+        }
+
+        async function handleApiSearch(event) {
+            event.preventDefault();
+            const q = document.getElementById('searchInput').value.trim();
+            if (!q) {
+                renderLibrary();
+                return;
+            }
+
+            try {
+                const res = await fetch(buildApiUrl(q));
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                const list = extractArray(json);
+
+                let added = 0;
+                list.forEach((raw, idx) => {
+                    const title = String(pickFirst(raw, ['title', 'name', 'manga_title', 'manhwa_title', 'slug']) || '').trim();
+                    if (!title) return;
+                    if (worksList.some(w => w.title.toLowerCase() === title.toLowerCase())) return;
+
+                    let thumb = pickFirst(raw, ['thumb', 'thumbnail', 'image', 'img', 'cover', 'poster', 'icon', 'src']);
+                    if (Array.isArray(thumb) && thumb.length) thumb = typeof thumb[0] === 'string' ? thumb[0] : (thumb[0].url || '');
+                    else if (typeof thumb === 'object' && thumb !== null) thumb = thumb.url || '';
+
+                    const genre = String(pickFirst(raw, ['genre', 'genres', 'type', 'category', 'status']) || 'Manhwa • مجاني').trim();
+                    const desc = String(pickFirst(raw, ['desc', 'description', 'synopsis', 'summary', 'about']) || 'عمل مانهوا مجاني جاهز للقراءة.').trim();
+                    const fallback = createPageSvg(title, 'الغلاف', 1, 'مانهوا مجانية • فصول جاهزة', '#1e1b4b', '#090c14', '#34d399');
+                    const cover = thumb && /^https?:\/\//i.test(String(thumb)) ? String(thumb).trim() : fallback;
+
+                    worksList.unshift({
+                        id: 'api-' + Date.now() + '-' + idx,
+                        title,
+                        genre,
+                        desc,
+                        cover,
+                        chapters: buildDefaultChapters(title, desc)
+                    });
+                    added++;
+                });
+
+                renderLibrary();
+                if (added > 0) {
+                    showBanner(`تم جلب ${added} أعمال جديدة من البحث بفصولها وصورها الجاهزة.`);
+                }
+            } catch (err) {
+                renderLibrary();
+                showBanner(`تعذر الاتصال بالـ API (${err.message}). الأعمال الجاهزة في المكتبة تعمل مباشرة.`, true);
+            }
+        }
+
+        function renderLibrary() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            const grid = document.getElementById('manhwaGrid');
+            grid.innerHTML = '';
+
+            const filtered = worksList.filter(w =>
+                w.title.toLowerCase().includes(q) ||
+                (w.genre || '').toLowerCase().includes(q)
+            );
+
+            document.getElementById('manhwaCount').innerText = `${filtered.length} أعمال`;
+
+            if (!filtered.length) {
+                grid.innerHTML = `<div class="col-span-full glass rounded-2xl p-8 text-center text-xs text-slate-400">لا توجد أعمال مطابقة.</div>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const fallback = createPageSvg(item.title, 'الغلاف', 1, 'مانهوا مجانية • فصول جاهزة', '#1e293b', '#090c14', '#34d399');
+                const coverSrc = item.cover || fallback;
+                grid.innerHTML += `
+                    <div onclick="openReader('${item.id}')" class="glass rounded-2xl p-4 space-y-3 cursor-pointer hover:border-emerald-400/50 transition flex flex-col justify-between">
+                        <div class="space-y-2">
+                            <img src="${escapeHtml(coverSrc)}" onerror="this.onerror=null;this.src='${escapeHtml(fallback)}'" alt="${escapeHtml(item.title)}" class="w-full h-48 object-cover rounded-xl border border-slate-800">
+                            <h3 class="text-sm font-black text-white pt-1">${escapeHtml(item.title)}</h3>
+                            <p class="text-[11px] text-emerald-400 font-bold">${escapeHtml(item.genre || 'مجاني')}</p>
+                            <p class="text-xs text-slate-400 line-clamp-2">${escapeHtml(item.desc || '')}</p>
+                        </div>
+                        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-300">
+                            <span>${item.chapters.length} فصول</span>
+                            <span class="text-emerald-400 font-bold">فتح القراءة <i class="fa-solid fa-chevron-left"></i></span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function openReader(id) {
+            const item = worksList.find(w => w.id === id);
+            if (!item) return;
+            activeManhwaId = id;
+
+            document.getElementById('libraryView').classList.add('hidden');
+            document.getElementById('readerView').classList.remove('hidden');
+            document.getElementById('readerTitle').innerText = item.title;
+            document.getElementById('readerMeta').innerText = item.genre || '';
+            document.getElementById('readerDesc').innerText = item.desc || '';
+
+            const fallback = createPageSvg(item.title, 'الغلاف', 1, 'مانهوا مجانية • فصول جاهزة', '#1e293b', '#090c14', '#34d399');
+            const coverEl = document.getElementById('readerCover');
+            coverEl.onerror = () => { coverEl.onerror = null; coverEl.src = fallback; };
+            coverEl.src = item.cover || fallback;
+
+            const select = document.getElementById('chapterSelect');
+            select.innerHTML = '';
+            item.chapters.forEach((ch, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = ch.title;
+                select.appendChild(opt);
+            });
+
+            selectChapter(0);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function backToLibrary() {
+            activeManhwaId = null;
+            document.getElementById('readerView').classList.add('hidden');
+            document.getElementById('libraryView').classList.remove('hidden');
+        }
+
+        function selectChapter(index) {
+            const item = worksList.find(w => w.id === activeManhwaId);
+            if (!item) return;
+            currentChapterIdx = Math.max(0, Math.min(Number(index) || 0, item.chapters.length - 1));
+            document.getElementById('chapterSelect').value = String(currentChapterIdx);
+
+            const ch = item.chapters[currentChapterIdx];
+            document.getElementById('chapterStoryBox').innerHTML = `
+                <div class="font-black text-emerald-400">${escapeHtml(ch.title)}</div>
+                <p>${escapeHtml(ch.text || '')}</p>
+            `;
+
+            const container = document.getElementById('pagesContainer');
+            container.innerHTML = '';
+            ch.pages.forEach((src, i) => {
+                container.innerHTML += `
+                    <div class="bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+                        <img src="${escapeHtml(src)}" alt="صفحة ${i + 1}" class="w-full h-auto block select-none" loading="lazy">
+                                    <img src="${escapeHtml(src)}" alt="صفحة ${i + 1}" class="w-full h-auto block select-none" loading="lazy">
+                    </div>
+                `;
+            });
+        }
+
+        function prevChapter() {
+            if (currentChapterIdx > 0) selectChapter(currentChapterIdx - 1);
+        }
+
+        function nextChapter() {
+            const item = worksList.find(w => w.id === activeManhwaId);
+            if (!item) return;
+            if (currentChapterIdx < item.chapters.length - 1) selectChapter(currentChapterIdx + 1);
+        }
+
+        renderLibrary();
+    </script>
+</body>
+</html>
