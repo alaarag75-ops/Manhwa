@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManhwaZone — مكتبة المانهوا المجانية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #07090f;
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .glass {
+            background: rgba(15, 20, 34, 0.92);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .accent-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #05110b;
+        }
+        .accent-btn:hover {
+            filter: brightness(1.08);
+        }
+    </style>
+</head>
+<body class="p-3 sm:p-6">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- الهيدر والبحث -->
+        <header class="glass rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl accent-btn flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-black text-white">ManhwaZone</h1>
+                    <p class="text-xs text-emerald-400">أعمال مانهوا مجانية • تقييمات وبحث عبر الـ API</p>
+                </div>
+            </div>
+
+            <form onsubmit="handleSearch(event)" class="flex items-center gap-2 flex-1 max-w-md">
+                <div class="relative flex-1">
+                    <input type="text" id="searchInput" oninput="renderWorks()" placeholder="ابحث عن مانهوا..." class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-9 text-xs text-white focus:outline-none focus:border-emerald-400">
+                    <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-xs text-slate-400"></i>
+                </div>
+                <button type="submit" class="accent-btn px-4 py-2 rounded-xl text-xs font-black transition shrink-0">
+                    بحث
+                </button>
+            </form>
+        </header>
+
+        <!-- شريط الحالة -->
+        <div id="statusBanner" class="hidden glass rounded-xl p-3 text-xs border whitespace-pre-wrap break-words"></div>
+
+        <!-- قائمة الأعمال بتقييماتها -->
+        <main id="catalogView" class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-star text-amber-400"></i> أعمال المانهوا المجانية والتقييمات
+                </h2>
+                <div class="flex items-center gap-3">
+                    <select id="sortSelect" onchange="renderWorks()" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-400">
+                        <option value="rating">الأعلى تقييماً</option>
+                        <option value="title">حسب الاسم (A-Z)</option>
+                    </select>
+                    <span id="worksCount" class="text-xs text-slate-400">0 أعمال</span>
+                </div>
+            </div>
+
+            <div id="worksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </main>
+
+        <!-- صفحة تفاصيل العمل -->
+        <section id="detailsView" class="hidden glass rounded-2xl p-4 sm:p-6 space-y-4">
+            <button onclick="backToCatalog()" class="text-xs text-emerald-400 hover:underline inline-flex items-center gap-1">
+                <i class="fa-solid fa-arrow-right"></i> العودة إلى القائمة
+            </button>
+            <div id="detailsContent"></div>
+        </section>
+    </div>
+
+    <script>
+        const API_ENDPOINT = 'https://johan-vex-apis.vercel.app/api/search/manga';
+
+        const FREE_CATALOG_SEED = [
+            { title: 'Tower of God', rating: 9.4, genre: 'Action • Fantasy', desc: 'رحلة صعود داخل برج غامض لاجتياز اختبارات كل طابق.' },
+            { title: 'Lookism', rating: 9.3, genre: 'Drama • Action', desc: 'قصة اجتماعية وقتالية تتابع حياة طالب وتجاربه المتنوعة.' },
+            { title: 'Eleceed', rating: 9.5, genre: 'Action • Comedy', desc: 'مغامرات أكشن وكوميديا تجمع بين السرعة وقدرات خاصة.' },
+            { title: 'Noblesse', rating: 9.1, genre: 'Supernatural • Action', desc: 'قصة نبيل يستيقظ بعد قرون في عالم حديث يواجه فيه تهديدات خفية.' },
+            { title: 'unOrdinary', rating: 9.2, genre: 'Action • Drama', desc: 'مجتمع تنقسم فيه القوى والقدرات بين الطلاب والمواطنين.' },
+            { title: 'True Beauty', rating: 8.9, genre: 'Romance • Drama', desc: 'قصة درامية اجتماعية حول المظهر والثقة بالنفس في المدرسة.' },
+            { title: 'The God of High School', rating: 9.0, genre: 'Action • Martial Arts', desc: 'بطولة قتالية كبرى تجمع مقاتلين بأساليب وفنون قتال متنوعة.' },
+            { title: 'Sweet Home', rating: 9.1, genre: 'Thriller • Horror', desc: 'مجموعة سكان يواجهون كوارث غريبة داخل مبنى سكني.' },
+            { title: 'Omniscient Reader', rating: 9.6, genre: 'Fantasy • Adventure', desc: 'قارئ يجد نفسه وسط عالم رواية يعرف تفاصيلها وأحداثها.' }
+        ];
+
+        let catalog = FREE_CATALOG_SEED.map((item, idx) => ({
+            id: 'seed-' + idx,
+            title: item.title,
+            rating: item.rating,
+            genre: `${item.genre} • مجاني`,
+            desc: item.desc,
+            thumb: '',
+            link: '',
+            chapters: []
+        }));
+
+        function escapeHtml(s) {
+            return String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function setStatus(msg, isErr = false) {
+            const box = document.getElementById('statusBanner');
+            box.classList.remove('hidden');
+            box.className = `glass rounded-xl p-3 text-xs border whitespace-pre-wrap break-words ${
+                isErr ? 'text-rose-300 border-rose-500/40' : 'text-emerald-300 border-emerald-500/30'
+            }`;
+            box.textContent = msg;
+        }
+
+        function buildApiUrl(query) {
+            const encoded = encodeURIComponent(query.trim()).replace(/%20/g, '+');
+            return `${API_ENDPOINT}?q=${encoded}`;
+        }
+
+        function extractArray(data) {
+            if (Array.isArray(data)) return data;
+            if (!data || typeof data !== 'object') return [];
+            for (const key of ['results', 'data', 'manga', 'manhwa', 'items', 'list', 'result']) {
+                if (Array.isArray(data[key])) return data[key];
+                if (data[key] && typeof data[key] === 'object') {
+                    for (const sub of ['results', 'data', 'manga', 'manhwa', 'items', 'list', 'result']) {
+                        if (Array.isArray(data[key][sub])) return data[key][sub];
+                    }
+                }
+            }
+            return [];
+        }
+
+        function pickVal(obj, keys) {
+            if (!obj || typeof obj !== 'object') return '';
+            for (const k of keys) {
+                if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') {
+                    return obj[k];
+                }
+            }
+            return '';
+        }
+
+        function parseRating(raw, fallback = 8.8) {
+            const val = pickVal(raw, ['rating', 'score', 'rate', 'stars', 'avg_rating']);
+            const num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+            if (!Number.isNaN(num) && num > 0) {
+                return num > 10 ? Number((num / 10).toFixed(1)) : Number(num.toFixed(1));
+            }
+            return fallback;
+        }
+
+        function mapApiItem(raw, fallbackRating = 8.8, prefix = 'api') {
+            const title = String(pickVal(raw, ['title', 'name', 'manga_title', 'manhwa_title', 'slug']) || '').trim();
+            if (!title) return null;
+
+            let thumb = pickVal(raw, ['thumb', 'thumbnail', 'image', 'img', 'cover', 'poster', 'icon', 'src']);
+            if (Array.isArray(thumb) && thumb.length) thumb = typeof thumb[0] === 'string' ? thumb[0] : (thumb[0]?.url || '');
+            else if (typeof thumb === 'object' && thumb !== null) thumb = thumb.url || '';
+
+            const desc = String(pickVal(raw, ['desc', 'description', 'synopsis', 'summary', 'about']) || '').trim();
+            const link = String(pickVal(raw, ['url', 'link', 'href', 'manga_url', 'source']) || '').trim();
+            const rawCh = pickVal(raw, ['chapters', 'chapter_list', 'episodes']);
+            const chapters = Array.isArray(rawCh) ? rawCh : [];
+
+            return {
+                id: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                title,
+                rating: parseRating(raw, fallbackRating),
+                genre: 'Manhwa • مجاني',
+                desc,
+                thumb: /^https?:\/\//i.test(String(thumb)) ? String(thumb).trim() : '',
+                link,
+                chapters
+            };
+        }
+
+        async function queryApi(q) {
+            const res = await fetch(buildApiUrl(q));
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            return extractArray(json);
+        }
+
+        async function syncCatalogWithApi() {
+            for (let i = 0; i < catalog.length; i++) {
+                const entry = catalog[i];
+                try {
+                    const list = await queryApi(entry.title);
+                    if (list.length > 0) {
+                        const mapped = mapApiItem(list[0], entry.rating, 'sync');
+                        if (mapped) {
+                            catalog[i] = {
+                                ...entry,
+                                thumb: mapped.thumb || entry.thumb,
+                                desc: mapped.desc || entry.desc,
+                                link: mapped.link || entry.link,
+                                chapters: mapped.chapters.length ? mapped.chapters : entry.chapters
+                            };
+                        }
+                    }
+                } catch {}
+            }
+            renderWorks();
+        }
+
+        async function handleSearch(e) {
+            if (e) e.preventDefault();
+            const q = document.getElementById('searchInput').value.trim();
+            if (!q) {
+                renderWorks();
+                return;
+            }
+
+            const url = buildApiUrl(q);
+            try {
+                const list = await queryApi(q);
+                let added = 0;
+
+                list.forEach((raw, idx) => {
+                    const mapped = mapApiItem(raw, Number((8.5 + ((idx % 12) * 0.1)).toFixed(1)), 'srch');
+                    if (!mapped) return;
+                    const existingIdx = catalog.findIndex(c => c.title.toLowerCase() === mapped.title.toLowerCase());
+                    if (existingIdx >= 0) {
+                        catalog[existingIdx] = {
+                            ...catalog[existingIdx],
+                            thumb: mapped.thumb || catalog[existingIdx].thumb,
+                            desc: mapped.desc || catalog[existingIdx].desc,
+                            link: mapped.link || catalog[existingIdx].link,
+                            chapters: mapped.chapters.length ? mapped.chapters : catalog[existingIdx].chapters
+                        };
+                    } else {
+                        catalog.unshift(mapped);
+                        added++;
+                    }
+                });
+
+                renderWorks();
+                if (added > 0) {
+                    setStatus(`تمت إضافة ${added} أعمال من نتائج البحث عبر الـ API:\n${url}`);
+                } else if (!list.length) {
+                    setStatus(`تم البحث عن "${q}" في الـ API:\n${url}\nولم ترجع نتائج إضافية.`, true);
+                }
+            } catch (err) {
+                renderWorks();
+                setStatus(`تعذر الاتصال بالـ API (${err.message}).`, true);
+            }
+        }
+
+        function renderWorks() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            const sortBy = document.getElementById('sortSelect').value;
+            const grid = document.getElementById('worksGrid');
+            grid.innerHTML = '';
+
+            let filtered = catalog.filter(item =>
+                item.title.toLowerCase().includes(q) ||
+                item.genre.toLowerCase().includes(q)
+            );
+
+            if (sortBy === 'rating') {
+                filtered.sort((a, b) => b.rating - a.rating);
+            } else {
+                filtered.sort((a, b) => a.title.localeCompare(b.title));
+            }
+
+            document.getElementById('worksCount').innerText = `${filtered.length} أعمال`;
+
+            if (!filtered.length) {
+                grid.innerHTML = `<div class="col-span-full glass rounded-2xl p-8 text-center text-xs text-slate-400">لا توجد أعمال مطابقة.</div>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                grid.innerHTML += `
+                    <div onclick="openDetails('${item.id}')" class="glass rounded-2xl p-4 space-y-3 cursor-pointer hover:border-emerald-400/50 transition flex flex-col justify-between">
+                        <div class="space-y-2.5">
+                            ${item.thumb
+                                ? `<img src="${escapeHtml(item.thumb)}" alt="${escapeHtml(item.title)}" class="w-full h-52 object-cover rounded-xl border border-slate-800">`
+                                : `<div class="w-full h-52 rounded-xl border border-slate-800 bg-slate-900 flex flex-col items-center justify-center p-4 text-center">
+                                     <span class="text-sm font-black text-white">${escapeHtml(item.title)}</span>
+                                     <span class="text-[11px] text-emerald-400 mt-1">مانهوا مجانية</span>
+                                   </div>`
+                            }
+                            <div class="flex items-center justify-between gap-2 pt-1">
+                                <h3 class="text-sm font-black text-white">${escapeHtml(item.title)}</h3>
+                                <span class="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-lg text-xs font-black shrink-0">
+                                    <i class="fa-solid fa-star text-[10px]"></i> ${escapeHtml(item.rating)}
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-emerald-400 font-bold">${escapeHtml(item.genre)}</p>
+                            ${item.desc ? `<p class="text-xs text-slate-400 line-clamp-2">${escapeHtml(item.desc)}</p>` : ''}
+                        </div>
+                        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-300">
+                            <span>فصول الـ API: ${item.chapters.length}</span>
+                            <span class="text-emerald-400 font-bold">التفاصيل <i class="fa-solid fa-chevron-left"></i></span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function openDetails(id) {
+            const item = catalog.find(c => c.id === id);
+            if (!item) return;
+
+            document.getElementById('catalogView').classList.add('hidden');
+            document.getElementById('detailsView').classList.remove('hidden');
+
+            const chaptersBlock = item.chapters.length
+                ? `<pre class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 overflow-x-auto">${escapeHtml(JSON.stringify(item.chapters, null, 2))}</pre>`
+                : `<div class="text-xs text-slate-400">لا توجد فصول راجعة في رد الـ API لهذا العمل حالياً.</div>`;
+
+            document.getElementById('detailsContent').innerHTML = `
+                <div class="flex flex-wrap gap-4 items-start">
+                    ${item.thumb ? `<img src="${escapeHtml(item.thumb)}" alt="${escapeHtml(item.title)}" class="w-24 h-36 object-cover rounded-xl border border-slate-800 shrink-0">` : ''}
+                    <div class="space-y-2 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="text-lg font-black text-white">${escapeHtml(item.title)}</h2>
+                            <span class="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-400/30 px-2.5 py-0.5 rounded-lg text-xs font-black">
+                                <i class="fa-solid fa-star text-[11px]"></i> ${escapeHtml(item.rating)} / 10
+                            </span>
+                        </div>
+                        <p class="text-xs text-emerald-400 font-bold">${escapeHtml(item.genre)}</p>
+                        ${item.desc ? `<p class="text-xs text-slate-300">${escapeHtml(item.desc)}</p>` : ''}
+                        ${item.link ? `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer" class="inline-block text-xs text-emerald-400 underline">فتح صفحة العمل في المصدر</a>` : ''}
+                    </div>
+                </div>
+                <div class="space-y-2 mt-4">
+                    <h3 class="text-xs font-bold text-emerald-400">الفصول الراجعة من الـ API</h3>
+                    ${chaptersBlock}
+                </div>
+            `;
+        }
+
+        function backToCatalog() {
+            document.getElementById('detailsView').classList.add('hidden');
+            document.getElementById('catalogView').classList.remove('hidden');
+        }
+
+        renderWorks();
+        syncCatalogWithApi();
+    </script>
+</body>
+</html>
